@@ -107,6 +107,15 @@ end;
 procedure ASourceScanner.next;
 
 begin
+{$IFDEF DEBUG}
+  writeln(Self.className, '.next():');
+  write(#9'MySource is ');
+  if MySource <> nil then
+    writeln(MySource.name)
+  else
+    writeln('NIL');
+{$ENDIF}
+
   // We cannot read from a nonexistent source
   if MySource = nil then
     exit;

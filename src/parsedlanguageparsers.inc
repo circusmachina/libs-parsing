@@ -40,22 +40,6 @@ type AParsedLanguageParser = class(AParser)
     { Refers to the language used to tokenize the source }
     MyLanguage: AParsedLanguage;
 
-    { Initialize the parser prior to parsing the source.
-
-      This method builds on the behavior inherited from
-      @link(AParser.readyToParse).  It calls the inherited routine and, if that
-      routine returns @true to indicate all is well, it checks to determine
-      whether @link(AParsedLanguageParser.Language Self.Language) is @nil,
-      indicating that a descendant class has not yet assigned a language to the
-      parser.  If not, the method will attempt to borrow the reference from a
-      parent.  In any case, if
-      @link(AParsedLanguageParser.Language Self.Language) is @nil, this method
-      will return @false.
-
-      @return(@true if the parser is ready to parse; @false if not.)
-    }
-    function readyToParse: boolean; override;
-
   public
     { Construct a new parser that will inherit the properties of its parent
       parser.
@@ -76,8 +60,29 @@ type AParsedLanguageParser = class(AParser)
     }
     destructor destroy; override;
 
+    { Initialize the parser prior to parsing the source.
+
+      This method builds on the behavior inherited from
+      @link(AParser.readyToParse).  It calls the inherited routine and, if that
+      routine returns @true to indicate all is well, it checks to determine
+      whether @link(AParsedLanguageParser.Language Self.Language) is @nil,
+      indicating that a descendant class has not yet assigned a language to the
+      parser.  If not, the method will attempt to borrow the reference from a
+      parent.  In any case, if
+      @link(AParsedLanguageParser.Language Self.Language) is @nil, this method
+      will return @false.
+
+      @return(@true if the parser is ready to parse; @false if not.)
+    }
+    function readyToParse: boolean; override;
+
     { Parse tokens or statements until one of the tokens in the specified rule
       is encountered.
+
+      Before this method is called, the return value of
+      @link(AParsedLanguageParser.readyToParse) should be checked; if that
+      method returns @false, the parser is not ready to parse and this method
+      should not be called.
 
       This method looks up the rule identified by @code(thisRule) by
       calling @link(AParsedLanguage.SyntaxRule) on

@@ -57,29 +57,6 @@ type AParser = class(ANode)
     { Refers to the list of tokens parsed from the source }
     MyTokens: ATokenList;
 
-    { Initialize the parser prior to parsing the source.
-
-      The purpose of this method is to allow descendant classes to override
-      the various properties of the parser at parsing time, providing greater
-      flexibility to the parser.  For instance, sometimes it is desirable to
-      inherit a token list from a parent parser, rather than constructing your
-      own.  This method is called automatically by
-      @link(AParser.parse), and descendant classes should call it as well before
-      proceeding to parse.
-
-      The base implementation of this method checks to ensure
-      @link(AParser.Source Self.Source), @link(AParser.Log Self.Log), and
-      @link(AParser.Tokens Self.Tokens) are all valid references (not @nil).
-      If @link(AParser.Tokens Self.Tokens) is @nil, indicating that a descendant
-      has not already assigned the list of tokens, then the routine will
-      construct an instance of @link(ATokenList) for the parser.
-      Descendant classes should call this routine before performing their own
-      checks and parsing the specified source.
-
-      @return(@true if the parser is ready to parse; @false if not.)
-    }
-    function readyToParse: boolean; virtual;
-
   public
     { Construct a new parser that will parse the specified source and output
       status and error messages to the specified log.
@@ -117,12 +94,39 @@ type AParser = class(ANode)
     }
     destructor destroy; override;
 
+    { Initialize the parser prior to parsing the source.
+
+      The purpose of this method is to allow descendant classes to override
+      the various properties of the parser at parsing time, providing greater
+      flexibility to the parser.  For instance, sometimes it is desirable to
+      inherit a token list from a parent parser, rather than constructing your
+      own.  This method should be called before @link(AParser.parse),
+      @link(AParser.parseUntilToken), or @link(AParser.parseUntil) are called
+      for the first time, and those methods should be called only if this method
+      returns @true.
+
+      The base implementation of this method checks to ensure
+      @link(AParser.Source Self.Source), @link(AParser.Log Self.Log), and
+      @link(AParser.Tokens Self.Tokens) are all valid references (not @nil).
+      If @link(AParser.Tokens Self.Tokens) is @nil, indicating that a descendant
+      has not already assigned the list of tokens, then the routine will
+      construct an instance of @link(ATokenList) for the parser.
+      Descendant classes should call this routine before performing their own
+      checks and parsing the specified source.
+
+      @return(@true if the parser is ready to parse; @false if not.)
+    }
+    function readyToParse: boolean; virtual;
+
     { Parse the source.
 
-      The base definition of this method simply calls
-      @link(AParser.readyToParse Self.readyToParse) and returns zero (@code(0))
-      if the parser is ready to parse and a negative value if not.  Descendant
-      classes should override this method.
+      Descendant classes should override this method to parse the element
+      represented by the parser (source, file, block, statement, expression,
+      etc.).
+
+      Before this method is called, the caller should check the return value
+      of @link(AParser.readyToParse); if the value is @false, then the parser
+      is not ready to parse and this method should not be called.
 
       @return(A negative value if an error has occurred before any parsing
       was done.  This will most likely occur if
@@ -131,7 +135,7 @@ type AParser = class(ANode)
       errors (such as syntax errors)  that occurred while parsing.
       A value of zero (0) indicates all is well.)
     }
-    function parse: int64; virtual;
+    function parse: int64; virtual; abstract;
 
     { Parse statements until the specified opcode is reached.
 
@@ -139,6 +143,10 @@ type AParser = class(ANode)
       source until a specific keyword or delimiter is reached.  It will most
       commonly be used to process function bodies, which are usually terminated
       by a keyword or delimiter of some kind.
+
+      Before this method is called, the caller should check the return value
+      of @link(AParser.readyToParse); if the value is @false, then the parser
+      is not ready to parse and this method should not be called.
 
       Internally, this method simply loops by calling
       @link(AParser.parse Self.parse) and then checking the
@@ -166,6 +174,10 @@ type AParser = class(ANode)
       source until one of a number of opcodes is reached.  It will most
       commonly be used to process loops, which are normally terminated by a
       keyword, delimiter, or expression.
+
+      Before this method is called, the caller should check the return value
+      of @link(AParser.readyToParse); if the value is @false, then the parser
+      is not ready to parse and this method should not be called.
 
       Internally, this method simply loops by calling
       @link(AParser.parse Self.parse) and then checking the current token when
@@ -579,21 +591,25 @@ end;
 function AParser.readyToParse: boolean;
 
 begin
-  if (MyParent = nil) and (MyLog <> nil) then
-    // Add a default counter for syntax errors to our log
+  if (MyParent <> nil) and (MyParent is AParser) then
+  begin
+    if MySource = nil then
+      MySource := AParser(MyParent).Source;
+
+    if MyLog = nil then
+      MyLog := AParser(MyParent).Log;
+
+    if MyScanner = nil then
+      MyScanner := AParser(MyParent).Scanner;
+  end;
+
+  if MyLog <> nil then
+    { Add a default counter for syntax errors to our log.  If the log already
+      has such a counter, then this call is harmless.
+    }
     MyLog.Counters.addLeaf(ACounter.named(lgerCounterName));
 
-  result := (MySource <> nil) and (MyLog <> nil);
-end;
-
-// Parse the source - does nothing much here
-function AParser.parse: int64;
-
-begin
-  result := -1;
-
-  if Self.readyToParse then
-    result := 0;
+  result := (MySource <> nil) and (MyLog <> nil) and (MyScanner <> nil);
 end;
 
 // Parse from the source until the specified token is encountered
@@ -754,6 +770,9 @@ end;
 function AParser.NextToken(const silenceCurrentToken: boolean = false): AToken;
 
 begin
+{$IFDEF DEBUG}
+  writeln(Self.className, '.NextToken():');
+{$ENDIF}
   Result := nil;
 
   if MyScanner <> nil then
@@ -767,7 +786,7 @@ begin
   end;
 
 {$IFDEF DEBUG}
-  writeln(Self.className, '.NextToken(): ');
+  write(Self.className, '.NextToken() returns:');
   if Result <> nil then
     writeln(SysUtils.format(#9'%s: %s (%.8X) @%X', [Result.className, Result.toString, Result.opcode, ptrUint(Result)]))
   else

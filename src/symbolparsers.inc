@@ -37,25 +37,6 @@ type ASymbolParser = class(AParsedLanguageParser)
     }
     myCurrentScope: TSymbolScope;
 
-    { Determine whether or not the parser is ready to parse.
-
-      This method builds on the behavior inherited from
-      @link(AParsedLanguageParser.readyToParse).  It calls the inherited routine
-      and, if that routine returns @true to indicate all is well, it checks to
-      determine whether @link(ASymbolParser.Symbols Self.Symbols) is @nil,
-      indicating that a descendant has not yet constructed symbol tables for
-      itself.  If this is the case, the method will first see if there is a
-      parent parser from which it can inherit a symbol table vector.  If not,
-      it will construct an instance of
-      @link(ASymbolTableVector) and then insert an instance of
-      @link(ASymbolTable) into it in order to represent the global scope.  This
-      behavior allows a descendant class to construct a different class or to
-      fill the symbol table vector in a different way.
-
-      @return(@true if the parser is ready to parse; @false if not.)
-    }
-    function readyToParse: boolean; override;
-
   public
     { Construct a new parser instance that will inherit the properties of its
       parent parser.
@@ -77,6 +58,25 @@ type ASymbolParser = class(AParsedLanguageParser)
       inherited routine.
     }
     destructor destroy; override;
+
+    { Determine whether or not the parser is ready to parse.
+
+      This method builds on the behavior inherited from
+      @link(AParsedLanguageParser.readyToParse).  It calls the inherited routine
+      and, if that routine returns @true to indicate all is well, it checks to
+      determine whether @link(ASymbolParser.Symbols Self.Symbols) is @nil,
+      indicating that a descendant has not yet constructed symbol tables for
+      itself.  If this is the case, the method will first see if there is a
+      parent parser from which it can inherit a symbol table vector.  If not,
+      it will construct an instance of
+      @link(ASymbolTableVector) and then insert an instance of
+      @link(ASymbolTable) into it in order to represent the global scope.  This
+      behavior allows a descendant class to construct a different class or to
+      fill the symbol table vector in a different way.
+
+      @return(@true if the parser is ready to parse; @false if not.)
+    }
+    function readyToParse: boolean; override;
 
     { Enter a new symbol into the symbol table at the specified scope.
 

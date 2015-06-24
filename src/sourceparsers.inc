@@ -35,34 +35,24 @@ type ASourceParser = class(ASymbolParser)
     { Initializer }
     function init: boolean; override;
 
-    { Execute the parser.
+    { Determine whether or not the parser is ready to parse.
 
       This method builds on the behavior inherited from
-      @link(ASymbolParser.parse): it first calls the inherited routine, then
-      checks to ensure that @link(ASourceParser.Output) is valid (not @nil).
-      If @link(ASourceParser.Output) is @nil, then this method returns -1;
-      otherwise, it returns zero (0).
+      @link(ASymbolParser.readyToParse).  It calls the inherited routine
+      and, if that routine returns @true to indicate all is well, it checks to
+      determine whether @link(ASourceParser.Output Self.Output) is @nil,
+      indicating that no output stream has been defined for the parser.  If not,
+      it attempts to borrow the reference from the parent, if it is available.
 
-      You will want to override this method when deriving from
-      @link(ASourceParser) so that it does actual work.
+      To parse successfully, an output stream must be provided to the parser
+      before parsing begins.  To set the output stream used by the parser,
+      call @link(ASourceParser.SetOutput).  This method will return @false if no
+      output stream has been provided and it is unable to borrow the reference
+      of a parent.
+
+      @return(@true if the parser is ready to parse; @false if not.)
     }
-    function parse: int64; override;
-
-    { Set the parser's output stream and execute the parser.
-
-      This method sets the value of @link(ASourceParser.Output) to
-      @code(Dest) and then calls @link(ASourceParser.parse).  The result of
-      that call is returned to the caller.
-
-      If @code(Dest) is invalid (@nil), then this routine does nothing and
-      returns -1.
-
-      @return(Zero (0) on success.  A negative value means an error occurred
-      that prevented parsing from completing successfully; a positive value
-      indicates the number of syntax errors that were encountered while
-      parsing.)
-    }
-    function parseInto(const Dest: AStream): int64; virtual;
+    function readyToParse: boolean; override;
 
     // Properties --------------------------------------------------------------
     { Retrieve a reference to the output stream used by the parser.
@@ -98,40 +88,22 @@ begin
   end;
 end;
 
-// Parse the source
-function ASourceParser.parse: int64;
+// Determine whether or not the parser is ready to parse
+function ASourceParser.readyToParse: boolean;
 
 begin
   // Call the inherited routine first
-  result := inherited parse;
+  result := inherited readyToParse;
 
-  if result <> 0 then
-    exit;
-
-  // Check to see whether we have a valid output stream
-  if MyOutput = nil then
+  if result then
   begin
-    // Check to see if we can inherit from the parent
-    if (MyParent <> nil) and (MyParent is ASourceParser) then
-      MyOutput := ASourceParser(MyParent).Output
+    // Check to see whether we have a valid output stream
+    if MyOutput = nil then
+      // Check to see if we can inherit from the parent
+      if (MyParent <> nil) and (MyParent is ASourceParser) then
+        MyOutput := ASourceParser(MyParent).Output;
 
-    else
-      result := -1;
-  end;
-end;
-
-// Parse the source into the specified output stream
-function ASourceParser.parseInto(const Dest: AStream): int64;
-
-begin
-  result := -1;
-
-  // Only parse if the destination stream is valid
-  if Dest <> nil then
-  begin
-    MyOutput := Dest;
-
-    result := Self.parse;
+    result := MyOutput <> nil;
   end;
 end;
 
