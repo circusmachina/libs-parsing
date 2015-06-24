@@ -1,4 +1,4 @@
-[parsing.pp][] - A library of basic parser classes useful in larger projects.  
+**parsing.pp** - A library of basic parser classes useful in larger projects.  
 Copyright (C) 2014-2015 [Michael Malicoat][Author].  
 [Home page][] | [Source][] | [Source documentation][] |
 [Bug tracker][]
@@ -33,10 +33,10 @@ design and implementation of a parser; the book
 early design of the parser contained here.
 
 A practical example of how the parsing library can be used to parse a language
-can be found in the [series of articles][3] at [circusmachina.com][] that deal 
-with writing a parser to parse the command-line arguments passed to a program.
-You can also refer to the [source][libs-linearc] for [LinearC][] to see how it 
-all comes together.
+can be found in the [series of articles][3] I've written that deal with writing 
+a parser to parse the command-line arguments passed to a program.  You can also
+refer to the [source][libs-linearc] for [LinearC][] to see how it all comes 
+together.
 
 ## License ##
 This program is free software: you can redistribute it and/or modify it under
@@ -67,6 +67,9 @@ various links used in the text above.)_
 [1]: https://developer.mozilla.org/en-US/docs/Mozilla/Projects/SpiderMonkey/Internals
 [2]: http://www.amazon.com/dp/B000V5WH5K/
 [3]: http://www.circusmachina.com/gladius/Tags/LinearC
+
+[libs-linearc]: https://github.com/circusmachina/libs-linearc
+[LinearC]: http://docs.circusmachina.com/libs/linearc/html/
 
 [AParsedLanguage]: http://docs.circusmachina.com/libs/parsing/html/parsing.AParsedLanguage.html
 [AScanner]: http://docs.circusmachina.com/libs/parsing/html/parsing.AScanner.html
