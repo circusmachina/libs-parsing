@@ -57,6 +57,29 @@ type AParser = class(ANode)
     { Refers to the list of tokens parsed from the source }
     MyTokens: ATokenList;
 
+    { Initialize the parser prior to parsing the source.
+
+      The purpose of this method is to allow descendant classes to override
+      the various properties of the parser at parsing time, providing greater
+      flexibility to the parser.  For instance, sometimes it is desirable to
+      inherit a token list from a parent parser, rather than constructing your
+      own.  This method is called automatically by
+      @link(AParser.parse), and descendant classes should call it as well before
+      proceeding to parse.
+
+      The base implementation of this method checks to ensure
+      @link(AParser.Source Self.Source), @link(AParser.Log Self.Log), and
+      @link(AParser.Tokens Self.Tokens) are all valid references (not @nil).
+      If @link(AParser.Tokens Self.Tokens) is @nil, indicating that a descendant
+      has not already assigned the list of tokens, then the routine will
+      construct an instance of @link(ATokenList) for the parser.
+      Descendant classes should call this routine before performing their own
+      checks and parsing the specified source.
+
+      @return(@true if the parser is ready to parse; @false if not.)
+    }
+    function readyToParse: boolean; virtual;
+
   public
     { Construct a new parser that will parse the specified source and output
       status and error messages to the specified log.
@@ -96,17 +119,17 @@ type AParser = class(ANode)
 
     { Parse the source.
 
-      The base definition of this method first checks to ensure that
-      @link(AParser.Source Self.Source), @link(AParser.Log Self.Log), and
-      @link(AParser.Tokens Self.Tokens) are all valid references (not @nil).
-      Descendant classes may call this routine before performing their own
-      checks and parsing the specified source.
+      The base definition of this method simply calls
+      @link(AParser.readyToParse Self.readyToParse) and returns zero (@code(0))
+      if the parser is ready to parse and a negative value if not.  Descendant
+      classes should override this method.
 
       @return(A negative value if an error has occurred before any parsing
-      was done.  This will most likely occur if either @link(AParser.Source) or
-      @link(AParser.Log) are invalid (@nil) pointers.  A positive value
-      indicates the number of non-fatal errors that occurred while parsing.  A
-      value of zero (0) indicates all is well.)
+      was done.  This will most likely occur if
+      @link(AParser.readyToParse Self.readyToParse) returns @false.  A value
+      greater than or equal to zero (@code(0)) indicates the number of non-fatal
+      errors (such as syntax errors)  that occurred while parsing.
+      A value of zero (0) indicates all is well.)
     }
     function parse: int64; virtual;
 
@@ -522,27 +545,45 @@ end;
 destructor AParser.destroy;
 
 begin
-  /// If we have a parent...
+  // If we have a parent...
   if (MyParent <> nil) and (MyParent is AParser) then
   begin
+    { Prevent freeing a list of tokens that does not belong to us (the
+      reference was borrowed from the parent).
+    }
+    if MyTokens = AParser(MyParent).Tokens then
+      MyTokens := nil;
+
     { Push our current token back to our parent, so that it has the token which
       ended this statement or statement block
     }
-    if MyTokens <> nil then
+    if (MyTokens <> nil) and (AParser(MyParent).Tokens <> nil) then
       AParser(MyParent).Tokens.push(MyTokens.Pop);
 
+    // Prevent freeing a scanner that does not belong to us
     MyScanner := nil;
   end;
 
   // Free the scanner, if any
   if MyScanner <> nil then
-    freeAndNil(MyScanner);
+    SysUtils.freeAndNil(MyScanner);
 
   // Free the list of tokens
   if MyTokens <> nil then
-    freeAndNil(MyTokens);
+    SysUtils.freeAndNil(MyTokens);
 
   inherited destroy;
+end;
+
+// Initialize the parser
+function AParser.readyToParse: boolean;
+
+begin
+  if (MyParent = nil) and (MyLog <> nil) then
+    // Add a default counter for syntax errors to our log
+    MyLog.Counters.addLeaf(ACounter.named(lgerCounterName));
+
+  result := (MySource <> nil) and (MyLog <> nil);
 end;
 
 // Parse the source - does nothing much here
@@ -551,11 +592,7 @@ function AParser.parse: int64;
 begin
   result := -1;
 
-  if MyLog <> nil then
-    // Add a default counter for errors
-    MyLog.Counters.addLeaf(ACounter.named(lgerCounterName));
-
-  if (MySource <> nil) and (MyLog <> nil) then
+  if Self.readyToParse then
     result := 0;
 end;
 
@@ -637,10 +674,19 @@ end;
 function AParser.CurrentToken: AToken;
 
 begin
-  // Construct a token list to manage tokens parsed from the source
+{$IFDEF DEBUG}
+  writeln(Self.className, '.CurrentToken(): ');
+{$ENDIF}
+  { If we did not inherit a list of tokens from our parent, then we
+    construct our own.
+  }
   if MyTokens = nil then
   begin
     MyTokens := ATokenList.new;
+
+{$IFDEF DEBUG}
+    writeln(SysUtils.format(#9'Constructed token list @ %.16X', [qword(MyTokens)]));
+{$ENDIF}
 
     { If we are a sub-element, such as a statement, then we need a couple of
       tokens
@@ -648,13 +694,14 @@ begin
     if (MyParent <> nil) and (MyParent is AParser) then
     begin
       { Push a copy of the parent's previous token (the one before this
-        statement) onto our list
+        statement) onto our list.
       }
       if AParser(MyParent).PreviousToken <> nil then
         MyTokens.push(AToken(AToken.shallowCopyOf(AParser(MyParent).PreviousToken)));
 
-      { Push the ACTUAL current token from our parent (the token that began this
-        statement) onto our list
+      { Pop the ACTUAL current token from our parent (the token that began this
+        statement) onto our list.  The parent token list will no longer have
+        this token.
       }
       if AParser(MyParent).CurrentToken <> nil then
         MyTokens.Push(AParser(MyParent).Tokens.Pop);
@@ -662,10 +709,11 @@ begin
   end;
 
   Result := MyTokens.LastToken;
+
 {$IFDEF DEBUG}
-  writeln(Self.className, '.CurrentToken(): ');
+  writeln(Self.className, '.CurrentToken() returns:');
   if Result <> nil then
-    writeln(SysUtils.format(#9'%s: %s (%.8X) @%X', [Result.className, Result.toString, Result.opcode, ptrUint(Result)]))
+    writeln(SysUtils.format(#9'%s (%.8X) @%X', [Result.toString, Result.opcode, ptrUint(Result)]))
   else
     writeln(#9'NIL');
 {$ENDIF}

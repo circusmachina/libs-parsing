@@ -558,6 +558,18 @@ function AToken.isPartOf(const Rule: ASyntaxRule): boolean;
 begin
   result := false;
 
+{$IFDEF DEBUG}
+  write(SysUtils.format('%s.isPartOf(): Searching for %.8X in rule ', [
+    Self.className, Self.opcode
+  ]));
+
+  if Rule <> nil then
+    writeln(SysUtils.format('@ %.8X', [qword(Rule)]))
+
+  else
+    writeln('NIL');
+{$ENDIF}
+
   if Rule <> nil then
     result := Rule.has(myOpcode);
 end;

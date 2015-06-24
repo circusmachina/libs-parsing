@@ -37,6 +37,25 @@ type ASymbolParser = class(AParsedLanguageParser)
     }
     myCurrentScope: TSymbolScope;
 
+    { Determine whether or not the parser is ready to parse.
+
+      This method builds on the behavior inherited from
+      @link(AParsedLanguageParser.readyToParse).  It calls the inherited routine
+      and, if that routine returns @true to indicate all is well, it checks to
+      determine whether @link(ASymbolParser.Symbols Self.Symbols) is @nil,
+      indicating that a descendant has not yet constructed symbol tables for
+      itself.  If this is the case, the method will first see if there is a
+      parent parser from which it can inherit a symbol table vector.  If not,
+      it will construct an instance of
+      @link(ASymbolTableVector) and then insert an instance of
+      @link(ASymbolTable) into it in order to represent the global scope.  This
+      behavior allows a descendant class to construct a different class or to
+      fill the symbol table vector in a different way.
+
+      @return(@true if the parser is ready to parse; @false if not.)
+    }
+    function readyToParse: boolean; override;
+
   public
     { Construct a new parser instance that will inherit the properties of its
       parent parser.
@@ -58,26 +77,6 @@ type ASymbolParser = class(AParsedLanguageParser)
       inherited routine.
     }
     destructor destroy; override;
-
-    { Parse the source.
-
-      This method builds on the behavior inherited from
-      @link(AParsedLanguageParser.parse).  It calls the inherited routine and,
-      if that routine returns zero (0) to indicate all is well, it checks to
-      determine whether @link(ASymbolParser.Symbols) is @nil.  If so, it
-      constructs an instance of @link(ASymbolTableVector) and then inserts an
-      instance of @link(ASymbolTable) into it in order to represent the global
-      scope.  This behavior allows a descendant class to construct a different
-      class or fill the symbol table vector in a different way.
-
-      @return(A negative value if an error has occurred before any parsing
-      was done.  This will most likely occur if @link(AParser.Source),
-      @link(AParser.Log), @link(AParsedLanguageParser.Language), or
-      @link(ASymbolParser.Symbols) are invalid (@nil) pointers.  A positive
-      value indicates the number of non-fatal errors that occurred while parsing.
-      A value of zero (0) indicates all is well.)
-    }
-    function parse: int64; override;
 
     { Enter a new symbol into the symbol table at the specified scope.
 
@@ -262,41 +261,35 @@ begin
   inherited destroy;
 end;
 
-// Parse the source
-function ASymbolParser.parse: int64;
+// Determine whether or not the parser is ready to parse
+function ASymbolParser.readyToParse: boolean;
 
 begin
-  result := inherited parse;
+  result := inherited readyToParse;
 
-  if result <> 0 then
-    exit;
-
-  // Check to ensure we have a valid symbol table collection
-  if MySymbols = nil then
+  if result then
   begin
-    result := -1;
-
-    // See if we can inherit from our parent
-    if (MyParent <> nil) and (MyParent is ASymbolParser) then
+    // Check to ensure we have a valid symbol table collection
+    if MySymbols = nil then
     begin
-      MySymbols := ASymbolParser(MyParent).Symbols;
-      myCurrentScope := ASymbolParser(MyParent).currentScope;
+      // See if we can inherit from our parent
+      if (MyParent <> nil) and (MyParent is ASymbolParser) then
+      begin
+        MySymbols := ASymbolParser(MyParent).Symbols;
+        myCurrentScope := ASymbolParser(MyParent).currentScope;
+      end
 
-      result := 0;
-    end
-
-    // Otherwise, construct our own
-    else begin
-      MySymbols := ASymbolTableVector.new;
-      if MySymbols = nil then
-        exit;
-
-      // Add the global scope to the collection
-      MySymbols.pushTable(ASymbolTable.new);
-
-      if MySymbols.length > 0 then
-        result := 0;
+      // Otherwise, construct our own
+      else begin
+        MySymbols := ASymbolTableVector.new;
+        if MySymbols <> nil then
+          // Add the global scope to the collection
+          MySymbols.pushTable(ASymbolTable.new);
+      end;
     end;
+
+    // To succeed, we must have at least a global scope
+    result := (MySymbols <> nil) and (MySymbols.length > 0);
   end;
 end;
 

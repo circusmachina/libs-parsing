@@ -678,7 +678,7 @@ var
 begin
   result := -1;
 
-  if System.length(rules) = 0 then
+  if (MyLanguage = nil) or (System.length(rules) = 0) then
     exit;
 
   for i := 0 to (System.length(rules) - 1) do

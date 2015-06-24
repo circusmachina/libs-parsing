@@ -24,9 +24,8 @@
   for parsers that process source using a language definition.
 
   Instead of directly creating an instance of this class, you will probably
-  derive a class from it and then create an instance of that, since calling
-  @link(AParsedLanguageParser.parse) on a direct instance of this class does not
-  do much that is useful.
+  derive a class from it and then create an instance of that, since this method
+  does not implement any new parsing behavior.
 
   When constructing an instance of @link(AParsedLanguageParser), you are
   expected to provide:
@@ -40,6 +39,22 @@ type AParsedLanguageParser = class(AParser)
   protected
     { Refers to the language used to tokenize the source }
     MyLanguage: AParsedLanguage;
+
+    { Initialize the parser prior to parsing the source.
+
+      This method builds on the behavior inherited from
+      @link(AParser.readyToParse).  It calls the inherited routine and, if that
+      routine returns @true to indicate all is well, it checks to determine
+      whether @link(AParsedLanguageParser.Language Self.Language) is @nil,
+      indicating that a descendant class has not yet assigned a language to the
+      parser.  If not, the method will attempt to borrow the reference from a
+      parent.  In any case, if
+      @link(AParsedLanguageParser.Language Self.Language) is @nil, this method
+      will return @false.
+
+      @return(@true if the parser is ready to parse; @false if not.)
+    }
+    function readyToParse: boolean; override;
 
   public
     { Construct a new parser that will inherit the properties of its parent
@@ -60,31 +75,6 @@ type AParsedLanguageParser = class(AParser)
       the inherited routine.
     }
     destructor destroy; override;
-
-    { Parse the source.
-
-      This method builds on the behavior inherited from @link(AParser.parse).
-      It calls the inherited routine and, if that routine returns zero (0) to
-      indicate all is well, it checks to determine whether
-      @link(AParsedLanguageParser.Language) is @nil.
-
-      For classes that override this method, the generally-accepted rule is
-      that, although @link(AParser.CurrentToken Self.CurrentToken)
-      @italic(should) refer to the token which ended the given statement when
-      this method exits, the actual process of resynchronizing the parser to
-      ensure that is done by @link(AParsedLanguageParser.parseUntil).  If you
-      would rather do so in this method, you will need to override
-      @link(AParsedLanguageParser.parseUntil), if you use it, as you will
-      otherwise the confuse the parser.
-
-      @return(A negative value if an error has occurred before any parsing
-      was done.  This will most likely occur if @link(AParser.Source),
-      @link(AParser.Log), or @link(AParsedLanguageParser.Language) are invalid
-      (@nil) pointers.  A positive value indicates the number of non-fatal
-      errors that occurred while parsing.  A value of zero (0) indicates all is
-      well.)
-    }
-    function parse: int64; override;
 
     { Parse tokens or statements until one of the tokens in the specified rule
       is encountered.
@@ -216,26 +206,21 @@ begin
   inherited destroy;
 end;
 
-// Parse the source
-function AParsedLanguageParser.parse: int64;
+// Determine whether the parser is ready to parse
+function AParsedLanguageParser.readyToParse: boolean;
 
 begin
-  // Call the inherited routine first
-  result := inherited parse;
+  result := inherited readyToParse;
 
-  if result = 0 then
+  if result then
   begin
     // Check to see whether or not we have a valid language
     if MyLanguage = nil then
-    begin
-      // We don't -- yet -- but we can inherit from our parent
+      // We don't -- yet -- but maybe we can inherit from our parent
       if (MyParent <> nil) and (MyParent is AParsedLanguageParser) then
-        MyLanguage := AParsedLanguageParser(MyParent).Language
+        MyLanguage := AParsedLanguageParser(MyParent).Language;
 
-      // Otherwise, we indicate an error
-      else
-        result := -1;
-    end;
+    result := MyLanguage <> nil;
   end;
 end;
 
